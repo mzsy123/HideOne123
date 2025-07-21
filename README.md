@@ -23,7 +23,7 @@
 
 ## 其他
 
-有关模块库的更多信息请查看Github (后续有时间会开源上传github)
+有关模块库的更多信息请查看Github (https://github.com/mzsy123/HideOne123)
 
 模块开源无加密无需担心安全问题
 注意从官方途径获取即可
