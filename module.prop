@@ -1,6 +1,6 @@
 id=HideOne
 name=HideOne(test)
-version=v2.3
-versionCode=20250716
-author=@MZSY233 频道@HideOne123
+version=v2.4
+versionCode=20250723
+author=@MZSY233 组织@HideOne123
 description=一键刷入隐藏模块基本隐藏大部分环境，如未完美隐藏请尝试清除所有模块后重新刷入本模块，本模块可全自动添加TS模块包名列表，支持添加白名单及额外包名默认添加3方应用包名
