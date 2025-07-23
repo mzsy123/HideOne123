@@ -1,9 +1,4 @@
 #!/system/bin/sh
-
-# ==============================================
-# 复用函数定义豆包优化版（提取重复逻辑，减少代码冗余）
-# ==============================================
-
 # MD5验证函数：参数1=文件路径，参数2=预期MD5的base64编码，参数3=验证序号
 verify_md5() {
     local file_path="$1"
@@ -32,13 +27,15 @@ install_module() {
     
     echo "- 正在刷入[$module_name]"
     echo "*********************************************"
-    $install_cmd module install "$module_path"  # 执行对应环境的安装命令
+    # 根据安装命令类型适配执行格式（核心修复点）
+    if [ "$install_cmd" = "magisk --install-module" ]; then
+        # Magisk命令格式：直接执行安装命令+路径
+        $install_cmd "$module_path"
+    else
+        # KSUD/APatch命令格式：命令+module install+路径
+        $install_cmd module install "$module_path"
+    fi
 }
-
-
-# ==============================================
-# 主逻辑：权限设置 + MD5验证
-# ==============================================
 
 # 设置权限（递归设置MODPATH目录权限）
 set_perm_recursive "$MODPATH" 0 0 0755 0755
@@ -56,21 +53,17 @@ verify_md5 "$MODPATH/mzsy/8.zip" "ZWJkYjk1NTU2OTgyY2MzMWI0MDE4YjNkYTE1M2YzZTA=" 
 verify_md5 "$MODPATH/mzsy/3.zip" "NjYzMDE5ZGI4YWU2ZDYxODAwNzc2YzRiNjhmMWE2M2M=" "⑧"
 verify_md5 "$MODPATH/mzsy/9.zip" "MjFlZmExZjY0ZjkwZGE4ZjlhNzI2NzQ5Mjk2MTFmZjA=" "⑨"
 verify_md5 "$MODPATH/mzsy/7.zip" "OWQzNGQ0NzBjZGI0ZTkzNjRjZjBlYmVmZmZjZTZlMTM=" "⑩"
-
 echo "【总体验证通过】所有模块MD5匹配-开始执行刷入"
 echo "*********************************************"
-
 
 # ==============================================
 # 模块安装逻辑（按环境区分，复用安装函数）
 # ==============================================
-
 # 1. KernelSU环境
 if [[ "$KSU" == "true" ]]; then
 # if [[ "$KSU_SUKISU" == "true" ]]; then   13246新特性
     ui_print "- KernelSU 用户空间版本: $KSU_VER_CODE"
     ui_print "- KernelSU 内核空间版本: $KSU_KERNEL_VER_CODE"
-
     # 检测KSU相关管理器，决定是否安装3.zip
     if pm list packages | grep -q "com.rifsxd.ksunext"; then
         ui_print "- 检测到Ksu Next"
@@ -85,10 +78,15 @@ if [[ "$KSU" == "true" ]]; then
     sleep 2
     # 通用模块安装（复用函数，统一传入安装命令"ksud"）
     install_module "$MODPATH/mzsy/2.zip" "Tricky-Store-v1.3.0-180-8acfa57-release.zip" "ksud"
+    sleep 1
     install_module "$MODPATH/mzsy/9.zip" "TrickyAddonModule-v4.0.zip" "ksud"
+    sleep 1
     install_module "$MODPATH/mzsy/4.zip" "Zygisk-Next-1.2.9-521-e73dbfc-release.zip" "ksud"
+    sleep 1
     install_module "$MODPATH/mzsy/5.zip" "PlayIntegrityFix_v19.2-TEST.zip" "ksud"
+    sleep 1
     install_module "$MODPATH/mzsy/6.zip" "LSPosed-v1.9.2-it-7379-release.zip" "ksud"
+    sleep 1
 
 # 2. APatch环境
 elif [[ "$APATCH" == "true" ]]; then
@@ -100,11 +98,17 @@ elif [[ "$APATCH" == "true" ]]; then
     
     # 通用模块安装（复用函数，传入安装命令"apd"）
     install_module "$MODPATH/mzsy/7.zip" "Nohello_53.zip" "apd"
+    sleep 1
     install_module "$MODPATH/mzsy/2.zip" "Tricky-Store-v1.3.0-180-8acfa57-release.zip" "apd"
+    sleep 1
     install_module "$MODPATH/mzsy/9.zip" "TrickyAddonModule-v4.0.zip" "apd"
+    sleep 1
     install_module "$MODPATH/mzsy/4.zip" "Zygisk-Next-1.2.9-521-e73dbfc-release.zip" "apd"
+    sleep 1
     install_module "$MODPATH/mzsy/5.zip" "PlayIntegrityFix_v19.2-TEST.zip" "apd"
+    sleep 1
     install_module "$MODPATH/mzsy/6.zip" "LSPosed-v1.9.2-it-7379-release.zip" "apd"
+    sleep 1
     
     # APatch专属：移动kpm模块到Download
     ui_print "- 正在移动APatch专属kpm隐藏模块"
@@ -118,21 +122,26 @@ elif [[ "$APATCH" == "true" ]]; then
 else
     ui_print "- Magisk 版本: $MAGISK_VER_CODE"
     
-    # 安装Shamiko模块
+    # 安装Shamiko模块（调用修复后的安装函数）
     install_module "$MODPATH/mzsy/1.zip" "Shamiko-v1.2.5-414-release.zip" "magisk --install-module"
-    echo "- 正在为shamiko添加切换按钮"
+    echo "- 正在为shamiko添加切换按钮"# v2.4尝试添加
     echo "*********************************************"
     unzip -jo "$ZIPFILE" 'mzsy/shamiko.sh' -d /data/local/tmp &>/dev/null
     mv -f "/data/local/tmp/shamiko.sh" "/data/adb/modules/zygisk_shamiko/action.sh"
     rm -f /data/local/tmp/shamiko.sh
     sleep 1
-
-    # 通用模块安装（复用函数，传入安装命令"magisk --install-module"）
+    
+    # 通用模块安装（复用函数，传入正确的Magisk安装命令）
     install_module "$MODPATH/mzsy/2.zip" "Tricky-Store-v1.3.0-180-8acfa57-release.zip" "magisk --install-module"
+    sleep 1
     install_module "$MODPATH/mzsy/9.zip" "TrickyAddonModule-v4.0.zip" "magisk --install-module"
+    sleep 1
     install_module "$MODPATH/mzsy/4.zip" "Zygisk-Next-1.2.9-521-e73dbfc-release.zip" "magisk --install-module"
+    sleep 1
     install_module "$MODPATH/mzsy/5.zip" "PlayIntegrityFix_v19.2-TEST.zip" "magisk --install-module"
+    sleep 1
     install_module "$MODPATH/mzsy/6.zip" "LSPosed-v1.9.2-it-7379-release.zip" "magisk --install-module"
+    sleep 1
     
     # 设置Shamiko白名单模式
     sleep 1
@@ -141,11 +150,9 @@ else
     touch /data/adb/shamiko/whitelist
 fi
 
-
 # ==============================================
-# 后续操作（文件移动、APK安装等）
+# 后续操作（文件移动、APK安装等）（其余逻辑保持不变）
 # ==============================================
-
 # 移动keybox.xml到指定目录（更新时间7.18）
 echo "- 移动模块内置最新keybox.xml"
 echo "*********************************************"
@@ -158,7 +165,6 @@ echo "*********************************************"
 unzip -jo "$ZIPFILE" 'mzsy/hma.apk' -d /data/local/tmp &>/dev/null
 # 覆盖安装APK
 pm install -r /data/local/tmp/hma.apk &>/dev/null
-
 # 检测HMA安装结果
 if pm list packages | grep -q "com.tsng.hidemyapplist"; then
     echo "- HMA安装完成"
@@ -175,22 +181,16 @@ unzip -jo "$ZIPFILE" 'mzsy/config.json' -d /data/local/tmp &>/dev/null
 mv -f "/data/local/tmp/config.json" "/sdcard/Download"
 rm -f /data/local/tmp/config.json
 
-# mv -f "$MODPATH/mzsy/config.json" "/sdcard/Download"
-
-
 # ==============================================
 # 音量键选择：刷入"游戏线程优化"模块（7.zip）
 # ==============================================
-
 echo "- 是否刷入'游戏线程优化'模块?"
 echo "- 按音量键+刷入"
 echo "- 按音量键-跳过"
-
 # 5秒超时检测逻辑
 TIMEOUT=5  # 超时时间（秒）
 KEY_TIMEOUT=false  # 超时标志
 echo "- 5秒后超时将自动跳过..."
-
 start=$(date +%s)  # 记录开始时间
 # 循环检测按键或超时
 while [ $(( $(date +%s) - start )) -lt $TIMEOUT ]; do
@@ -206,19 +206,17 @@ while [ $(( $(date +%s) - start )) -lt $TIMEOUT ]; do
         elif [[ "$APATCH" == "true" ]]; then
             apd module install "$MODPATH/mzsy/8.zip"
         else
-            magisk --install-module "$MODPATH/mzsy/8.zip"
+            magisk --install-module "$MODPATH/mzsy/8.zip"  # 直接使用正确的Magisk命令
         fi
         echo "- 已刷入'游戏线程优化'模块"
         break
     fi
     sleep 0.2  # 短暂延迟，减少资源占用
 done
-
 # 超时未操作，自动跳过
 if [ $(( $(date +%s) - start )) -ge $TIMEOUT ]; then
     echo "⏳ 已超时，自动跳过刷入"
 fi
-
 
 # ==============================================
 # 完成提示
