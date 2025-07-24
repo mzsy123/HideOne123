@@ -1,5 +1,5 @@
 echo ""
-echo "组织@HideOne123"
+echo "女朋友@HideOne123"
 echo "↑✈️速来骚扰✈️↑"
 
 sh -c /data/adb/modules/HideOne/package/pa.sh

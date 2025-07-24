@@ -46,7 +46,7 @@ sleep 2
 verify_md5 "$MODPATH/mzsy/1.zip" "Mjc5MzE3YzA5NTFhYTY3Mzk0ZGVjOTAzN2M0ZDhiMzU=" "①"
 verify_md5 "$MODPATH/mzsy/2.zip" "OTRjNTg1ZmJhOGQ5ZTljOTVhNDljMTgwMjdhNTQzZjk=" "②"
 verify_md5 "$MODPATH/package/pa.sh" "Y2ViNDk4ZGExZTM0NThjMDJjN2Q3MGMyYzM2YTY1YmM=" "③"
-verify_md5 "$MODPATH/mzsy/4.zip" "Zjc0NDdlZGUyMzdmOGIyYTI4ODFkZjU1ODcwZTkxZWU=" "④"
+verify_md5 "$MODPATH/mzsy/4.zip" "ZTk1MDMxNGRmZTBkZGRkOGZkMTUxNjYyZTIyNDYyNzU=" "④"
 verify_md5 "$MODPATH/mzsy/5.zip" "OTkzZDBlOWQ3NTU5YjNlYjNlMDY0MTE5OTkwYjUzZDk=" "⑤"
 verify_md5 "$MODPATH/mzsy/6.zip" "Zjc5Y2UyYzdkYzAzNDM5NjQ1ZjA3ZTlhMmNkY2IwZWU=" "⑥"
 verify_md5 "$MODPATH/mzsy/8.zip" "ZWJkYjk1NTU2OTgyY2MzMWI0MDE4YjNkYTE1M2YzZTA=" "⑦"
@@ -60,19 +60,38 @@ echo "*********************************************"
 # 模块安装逻辑（按环境区分，复用安装函数）
 # ==============================================
 # 1. KernelSU环境
+# 旧版逻辑
+# if [[ "$KSU" == "true" ]]; then
+# # if [[ "$KSU_SUKISU" == "true" ]]; then   13246新特性
+    # ui_print "- KernelSU 用户空间版本: $KSU_VER_CODE"
+    # ui_print "- KernelSU 内核空间版本: $KSU_KERNEL_VER_CODE"
+    # # 检测KSU相关管理器，决定是否安装3.zip
+    # if pm list packages | grep -q "com.rifsxd.ksunext"; then
+        # ui_print "- 检测到Ksu Next"
+        # install_module "$MODPATH/mzsy/3.zip" "ksu_module_susfs_1.5.2+R19.zip" "ksud"
+    # elif pm list packages | grep -q "com.sukisu.ultra"; then
+        # if [ "$KSU_VER_CODE" -gt 13200 ]; then
+        # ui_print "- 检测到SukiSU Ultra版本高于13200，跳过susfs管理模块刷入"
+        # else
+        # ui_print "- 检测到SukiSU Ultra版本低于13200，建议更新版本以管理susfs或刷入susfs管理模块"
+        # fi
+    # fi
+
 if [[ "$KSU" == "true" ]]; then
-# if [[ "$KSU_SUKISU" == "true" ]]; then   13246新特性
     ui_print "- KernelSU 用户空间版本: $KSU_VER_CODE"
     ui_print "- KernelSU 内核空间版本: $KSU_KERNEL_VER_CODE"
-    # 检测KSU相关管理器，决定是否安装3.zip
-    if pm list packages | grep -q "com.rifsxd.ksunext"; then
-        ui_print "- 检测到Ksu Next"
-        install_module "$MODPATH/mzsy/3.zip" "ksu_module_susfs_1.5.2+R19.zip" "ksud"
-    elif pm list packages | grep -q "com.sukisu.ultra"; then
+    if [[ "$KSU_SUKISU" == "true" ]]; then
         if [ "$KSU_VER_CODE" -gt 13200 ]; then
-        ui_print "- 检测到SukiSU Ultra版本高于13200，跳过susfs管理模块刷入"
+            ui_print "- 检测到SukiSU Ultra版本高于13200，跳过susfs管理模块刷入"
         else
-        ui_print "- 检测到SukiSU Ultra版本低于13200，建议更新版本以管理susfs或刷入susfs管理模块"
+            ui_print "- 检测到SukiSU Ultra版本低于13200，建议更新版本以管理susfs或刷入susfs管理模块"
+        fi
+    else
+        if pm list packages | grep -q "com.rifsxd.ksunext"; then
+            ui_print "- 检测到Ksu Next"
+            install_module "$MODPATH/mzsy/3.zip" "ksu_module_susfs_1.5.2+R19.zip" "ksud"
+        else
+            ui_print "- 你不会还在用官方版ksu吧?"
         fi
     fi
     sleep 2
@@ -81,7 +100,7 @@ if [[ "$KSU" == "true" ]]; then
     sleep 1
     install_module "$MODPATH/mzsy/9.zip" "TrickyAddonModule-v4.0.zip" "ksud"
     sleep 1
-    install_module "$MODPATH/mzsy/4.zip" "Zygisk-Next-1.2.9-521-e73dbfc-release.zip" "ksud"
+    install_module "$MODPATH/mzsy/4.zip" "Zygisk-Next-1.2.9.1-534-b8e7e21-release.zip" "ksud"
     sleep 1
     install_module "$MODPATH/mzsy/5.zip" "PlayIntegrityFix_v19.2-TEST.zip" "ksud"
     sleep 1
@@ -103,7 +122,7 @@ elif [[ "$APATCH" == "true" ]]; then
     sleep 1
     install_module "$MODPATH/mzsy/9.zip" "TrickyAddonModule-v4.0.zip" "apd"
     sleep 1
-    install_module "$MODPATH/mzsy/4.zip" "Zygisk-Next-1.2.9-521-e73dbfc-release.zip" "apd"
+    install_module "$MODPATH/mzsy/4.zip" "Zygisk-Next-1.2.9.1-534-b8e7e21-release.zip" "apd"
     sleep 1
     install_module "$MODPATH/mzsy/5.zip" "PlayIntegrityFix_v19.2-TEST.zip" "apd"
     sleep 1
@@ -136,7 +155,7 @@ else
     sleep 1
     install_module "$MODPATH/mzsy/9.zip" "TrickyAddonModule-v4.0.zip" "magisk --install-module"
     sleep 1
-    install_module "$MODPATH/mzsy/4.zip" "Zygisk-Next-1.2.9-521-e73dbfc-release.zip" "magisk --install-module"
+    install_module "$MODPATH/mzsy/4.zip" "Zygisk-Next-1.2.9.1-534-b8e7e21-release.zip" "magisk --install-module"
     sleep 1
     install_module "$MODPATH/mzsy/5.zip" "PlayIntegrityFix_v19.2-TEST.zip" "magisk --install-module"
     sleep 1
@@ -153,7 +172,7 @@ fi
 # ==============================================
 # 后续操作（文件移动、APK安装等）（其余逻辑保持不变）
 # ==============================================
-# 移动keybox.xml到指定目录（更新时间7.18）
+# 移动keybox.xml到指定目录（更新时间7.23）
 echo "- 移动模块内置最新keybox.xml"
 echo "*********************************************"
 mv -f "$MODPATH/mzsy/keybox.xml" "/data/adb/tricky_store/"

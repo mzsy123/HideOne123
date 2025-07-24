@@ -1,0 +1,1 @@
+am start -a android.intent.action.VIEW -d "http://www.coolapk.com/u/4061907"
