@@ -1,70 +1,20 @@
-name: Sync Release
-on:
-  push:
-    tags: ['v*']
-  workflow_dispatch:
-    inputs:
-      version:
-        description: '版本号（带 v 前缀，如 v1.0.0）'
-        required: true
-        default: 'v2.7'
-
-jobs:
-  sync-release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: 提取版本号
-        id: get_version
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            if [[ "${{ github.event.inputs.version }}" != v* ]]; then
-              echo "错误：版本号必须以 v 开头（如 v1.0.0）"
-              exit 1
-            fi
-            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
-
-      # 核心修复：单行命令 + bash 执行
-      - name: 打包仓库
-        run: zip -r "release-${{ steps.get_version.outputs.VERSION }}.zip" . -x "*.git*" -x ".github/" -x "release-*.zip"
-        shell: bash  # 强制用 bash，避免 sh 的解析问题
-
-      - name: 发布到源仓库
-        uses: softprops/action-gh-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ steps.get_version.outputs.VERSION }}
-          name: "Release ${{ steps.get_version.outputs.VERSION }}"
-          body: |
-            **触发方式**：${{ github.event_name == 'workflow_dispatch' && '手动触发' || '标签自动触发' }}  
-            **同步目标**：mzsy123/mzsy123.github.io
-          files: "release-${{ steps.get_version.outputs.VERSION }}.zip"
-          draft: false
-          prerelease: false
-
       - name: 同步到目标仓库
         uses: actions/github-script@v7
         env:
-          TARGET_OWNER: "mzsy123"
-          TARGET_REPO: "mzsy123.github.io"
+          TARGET_OWNER: "mzsy123"            # 目标仓库所有者
+          TARGET_REPO: "mzsy123.github.io"   # 目标仓库名称
           TAG: ${{ steps.get_version.outputs.VERSION }}
           ASSET_PATH: "release-${{ steps.get_version.outputs.VERSION }}.zip"
-          TARGET_PAT: ${{ secrets.TARGET_REPO_PAT }}
+          TARGET_PAT: ${{ secrets.TARGET_REPO_PAT }}  # 已配置的 PAT
         with:
           script: |
             const fs = require('fs').promises;
-            const core = require('@actions/core');
+            // 无需手动 require('@actions/core')！GitHub Script 已内置 core 对象
             const octokit = require('@actions/github')({ token: process.env.TARGET_PAT });
 
             let release;
             try {
+              // 查找目标仓库的 Release
               release = await octokit.rest.repos.getReleaseByTag({
                 owner: process.env.TARGET_OWNER,
                 repo: process.env.TARGET_REPO,
@@ -72,6 +22,7 @@ jobs:
               });
             } catch (err) {
               if (err.status === 404) {
+                // 不存在则创建
                 release = await octokit.rest.repos.createRelease({
                   owner: process.env.TARGET_OWNER,
                   repo: process.env.TARGET_REPO,
@@ -82,7 +33,7 @@ jobs:
                   prerelease: false
                 });
               } else {
-                core.setFailed(`创建 Release 失败：${err.message}`);
+                core.setFailed(`创建 Release 失败：${err.message}`); // 直接使用内置 core
                 return;
               }
             }
@@ -102,5 +53,5 @@ jobs:
               });
               console.log("✅ 同步成功！");
             } catch (err) {
-              core.setFailed(`上传资产失败：${err.message}`);
+              core.setFailed(`上传资产失败：${err.message}`); // 直接使用内置 core
             }
