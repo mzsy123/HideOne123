@@ -1,13 +1,13 @@
 name: Sync Compressed File
 on:
   push:
-    tags: ['v*']  # 标签触发（如 v1.0.0）
+    tags: ['v*']  # 标签触发（如 v2.0）
   workflow_dispatch:  # 手动触发
     inputs:
       version:
-        description: '版本号（必须带 v 前缀，如 v1.0.0）'
+        description: '版本号（必须带 v 前缀，如 v2.0）'
         required: true
-        default: 'v1.0.0'
+        default: 'v2.0'
 
 jobs:
   sync:
@@ -15,7 +15,7 @@ jobs:
     env:
       TARGET_OWNER: "mzsy123"          # 目标仓库所有者（GitHub 用户名）
       TARGET_REPO: "mzsy123.github.io" # 目标仓库名称
-      TARGET_PATH: "compressed"        # 目标路径（如 compressed、releases 等）
+      TARGET_PATH: "zip"        # 目标路径（如 compressed、releases 等）
       TARGET_BRANCH: "main"            # 目标分支（如 main、gh-pages）
 
     steps:
@@ -50,8 +50,8 @@ jobs:
       - name: 打包文件
         run: |
           # 关键：-x 参数与 zip 命令紧连，避免续行符导致的解析问题
-          zip -r "release-${{ steps.ver.outputs.VERSION }}.zip" . \
-              -x "*.git*" -x ".github/" -x "release-*.zip"
+          zip -r "HideOne_${{ steps.ver.outputs.VERSION }}.zip" . \
+              -x "*.git*" -x ".github/" -x "HideOne_*.zip"
         shell: bash  # 强制用 bash 执行，确保参数解析正确
 
       ####################################################################
@@ -74,7 +74,7 @@ jobs:
           mkdir -p target_repo/${{ env.TARGET_PATH }}
           
           # 复制生成的压缩包到目标目录
-          cp "release-${{ steps.ver.outputs.VERSION }}.zip" \
+          cp "HideOne_${{ steps.ver.outputs.VERSION }}.zip" \
              target_repo/${{ env.TARGET_PATH }}
 
       ####################################################################
