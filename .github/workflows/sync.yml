@@ -9,85 +9,60 @@ on:
         required: true
         default: 'v1.0.0'
 
+
 jobs:
   sync:
     runs-on: ubuntu-latest
     env:
-      TARGET_OWNER: "mzsy123"          # 目标仓库所有者（如 GitHub 用户名）
+      TARGET_OWNER: "mzsy123"          # 目标仓库所有者
       TARGET_REPO: "mzsy123.github.io" # 目标仓库名称
-      TARGET_PATH: "zip"  # 目标路径（如 docs、public，按需修改）
+      TARGET_PATH: "target/directory"  # 目标路径（如 zip、public 等）
       TARGET_BRANCH: "main"            # 目标分支（如 main、gh-pages）
 
     steps:
-      ####################################################################
-      # 1. 检出源仓库代码
-      ####################################################################
       - name: 检出源仓库
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # 确保获取标签历史
+        with: { fetch-depth: 0 }
 
-      ####################################################################
-      # 2. 提取并校验版本号
-      ####################################################################
       - name: 提取版本号
         id: ver
         run: |
-          VERSION=${{ github.event.inputs.version || github.ref_name }}
-          # 强制校验 v 前缀
-          if [[ "$VERSION" != v* ]]; then
-            echo "::error::版本号必须以 v 开头（如 v1.0.0）"
-            exit 1
-          fi
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          V=${{ github.event.inputs.version || github.ref_name }}
+          [[ $V != v* ]] && echo "::error::版本号必须以 v 开头" && exit 1
+          echo "VERSION=$V" >> $GITHUB_OUTPUT
 
-      ####################################################################
-      # 3. 打包源仓库内容
-      ####################################################################
       - name: 打包文件
-        run: |
-          zip -r "release-${{ steps.ver.outputs.VERSION }}.zip" . \
-            -x "*.git*" -x ".github/" -x "release-*.zip"
-        shell: bash  # 强制 bash 解析参数
+        run: zip -r "release-${{ steps.ver.outputs.VERSION }}.zip" . -x "*.git*" ".github/" "release-*.zip"
+        shell: bash
 
-      ####################################################################
-      # 4. 检出目标仓库（官方方案：用 token 参数传递 PAT，彻底解决认证问题）
-      ####################################################################
       - name: 检出目标仓库（PAT 认证）
         uses: actions/checkout@v4
         with:
-          repository: ${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}  # 目标仓库地址
-          ref: ${{ env.TARGET_BRANCH }}                               # 目标分支
-          token: ${{ secrets.TARGET_REPO_PAT }}                       # 关键：显式传递你的 PAT
-          path: target_repo                                           # 检出到子目录，避免冲突
+          repository: ${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}
+          ref: ${{ env.TARGET_BRANCH }}
+          token: ${{ secrets.TARGET_REPO_PAT }}
+          path: target_repo
 
-      ####################################################################
-      # 5. 解压文件到目标路径
-      ####################################################################
-      - name: 解压并覆盖目标路径
+      - name: 禁用 Git 凭证缓存（解决隐式认证冲突）
+        run: git config --global credential.helper ""
+
+      - name: 解压到目标路径
         run: |
-          # 创建目标目录（确保存在）
           mkdir -p target_repo/${{ env.TARGET_PATH }}
-          # 解压打包文件到目标路径
           unzip "release-${{ steps.ver.outputs.VERSION }}.zip" -d target_repo/${{ env.TARGET_PATH }}
-          # 可选：删除冗余文件（如 .gitignore，按需调整）
-          # rm -rf target_repo/${{ env.TARGET_PATH }}/.git*
 
-      ####################################################################
-      # 6. 提交并推送到目标仓库（增加变更检查）
-      ####################################################################
-      - name: 提交更改（检查空提交）
+      - name: 提交并推送（显式 URL + 强校验）
         run: |
           cd target_repo
-          # 配置 Git 身份（必填）
+          # 强制设置远程 URL（和本地测试一致）
+          git remote set-url origin https://${{ secrets.TARGET_REPO_PAT }}@github.com/${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}.git
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          # 检查是否有文件变更
           git add .
           if git diff --cached --quiet; then
-            echo "✅ 无变更，跳过提交"
+            echo "✅ 无变更"
           else
-            git commit -m "Sync from source: ${{ steps.ver.outputs.VERSION }}"
+            git commit -m "Sync: ${{ steps.ver.outputs.VERSION }}"
             git push
-            echo "✅ 提交并推送成功！"
+            echo "✅ 推送成功！"
           fi
