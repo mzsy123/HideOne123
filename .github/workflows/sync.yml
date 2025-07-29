@@ -1,80 +1,68 @@
-name: Sync Release  # 简化名称
+name: Sync Release
 on:
   push:
-    tags: ['v*']  # 标签触发（如 v1.0.0）
-  workflow_dispatch:  # 手动触发入口
+    tags: ['v*']
+  workflow_dispatch:
     inputs:
       version:
         description: '版本号（带 v 前缀，如 v1.0.0）'
         required: true
-        default: 'v1.0.0'
+        default: 'v2.7'
 
 jobs:
-  sync-release:  # 简化 jobs 名称
+  sync-release:
     runs-on: ubuntu-latest
     steps:
-      # 1. 检出源仓库代码（HideOne123）
-      - name: 检出代码
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 确保获取标签历史
+          fetch-depth: 0
 
-      # 2. 提取并校验版本号
       - name: 提取版本号
         id: get_version
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            # 手动触发：强制校验 v 前缀
             if [[ "${{ github.event.inputs.version }}" != v* ]]; then
               echo "错误：版本号必须以 v 开头（如 v1.0.0）"
               exit 1
             fi
             echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
           else
-            # 标签触发：自动提取
             echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
 
-      # 3. 打包仓库内容（排除冗余文件）
+      # 核心修复：单行命令 + bash 执行
       - name: 打包仓库
-        run: |
-          zip -r "release-${{ steps.get_version.outputs.VERSION }}.zip" . \
-            -x "*.git*" \          # 排除 Git 相关文件
-            -x ".github/" \        # 排除 GitHub Actions 配置
-            -x "release-*.zip"     # 排除历史打包文件
-        shell: bash  # 强制用 bash 执行
+        run: zip -r "release-${{ steps.get_version.outputs.VERSION }}.zip" . -x "*.git*" -x ".github/" -x "release-*.zip"
+        shell: bash  # 强制用 bash，避免 sh 的解析问题
 
-      # 4. 发布到源仓库（HideOne123）的 Releases
       - name: 发布到源仓库
         uses: softprops/action-gh-release@v2
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # 源仓库内置 Token
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.get_version.outputs.VERSION }}
           name: "Release ${{ steps.get_version.outputs.VERSION }}"
           body: |
             **触发方式**：${{ github.event_name == 'workflow_dispatch' && '手动触发' || '标签自动触发' }}  
-            **同步目标**：mzsy123/mzsy123.github.io（需替换为实际仓库）
+            **同步目标**：mzsy123/mzsy123.github.io
           files: "release-${{ steps.get_version.outputs.VERSION }}.zip"
           draft: false
           prerelease: false
 
-      # 5. 同步到目标仓库（需替换为实际仓库）
       - name: 同步到目标仓库
         uses: actions/github-script@v7
         env:
-          TARGET_OWNER: "mzsy123"            # 替换为目标仓库所有者（如你的用户名）
-          TARGET_REPO: "mzsy123.github.io"   # 替换为目标仓库名称
+          TARGET_OWNER: "mzsy123"
+          TARGET_REPO: "mzsy123.github.io"
           TAG: ${{ steps.get_version.outputs.VERSION }}
           ASSET_PATH: "release-${{ steps.get_version.outputs.VERSION }}.zip"
-          TARGET_PAT: ${{ secrets.TARGET_REPO_PAT }}  # 需提前配置的 PAT（参考前置步骤）
+          TARGET_PAT: ${{ secrets.TARGET_REPO_PAT }}
         with:
           script: |
             const fs = require('fs').promises;
             const core = require('@actions/core');
             const octokit = require('@actions/github')({ token: process.env.TARGET_PAT });
 
-            // ① 查找或创建目标仓库的 Release
             let release;
             try {
               release = await octokit.rest.repos.getReleaseByTag({
@@ -99,7 +87,6 @@ jobs:
               }
             }
 
-            // ② 上传资产到目标仓库
             try {
               const fileContent = await fs.readFile(process.env.ASSET_PATH);
               await octokit.rest.repos.uploadReleaseAsset({
