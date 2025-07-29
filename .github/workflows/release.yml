@@ -1,9 +1,8 @@
 name: Build and Release
 
-# 触发条件：① 推送 v* 标签 ② 手动触发（Actions 页面点击运行）
 on:
   push:
-    tags: ['v*']
+    tags: ['v*']  # 标签触发（如 v1.0.0）
   workflow_dispatch:
     inputs:
       version:
@@ -15,43 +14,35 @@ jobs:
   build-and-release:
     runs-on: ubuntu-latest
     steps:
-      # 1. 检出代码（必须，获取仓库文件）
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 确保能获取完整历史（标签/提交）
+          fetch-depth: 0
 
-      # 2. 智能提取版本号：标签触发则从标签取，手动触发则用输入值
       - name: 提取版本号
         id: get_version
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            # 手动触发：使用输入的版本号（如 v1.0.0）
             echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
           else
-            # 标签触发：从标签名中提取（如 refs/tags/v1.0.0 → v1.0.0）
             echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
 
-      # 3. 打包仓库（排除冗余文件，确保兼容手动/自动触发）
+      # 关键修复：单行命令，无续行符
       - name: 打包仓库内容
         run: |
-          zip -r "release-${{ steps.get_version.outputs.VERSION }}.zip" . \
-            -x "*.git*" \        # 排除 Git 相关文件
-            -x ".github/" \      # 排除 GitHub Actions 配置
-            -x "release-*.zip"   # 排除历史打包文件
-        shell: bash  # 强制用 bash 执行，避免续行符问题
+          zip -r "release-${{ steps.get_version.outputs.VERSION }}.zip" . -x "*.git*" -x ".github/" -x "release-*.zip"
+        shell: bash  # 强制用 bash，避免 sh 的兼容问题
 
-      # 4. 创建 Release 并上传资产（自动处理权限，兼容手动/自动触发）
       - name: 创建 Release 并上传
         uses: softprops/action-gh-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # 自动继承仓库读写权限
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ steps.get_version.outputs.VERSION }}  # 标签名（手动/自动一致）
-          name: Release ${{ steps.get_version.outputs.VERSION }}  # Release 标题
-          body: |  # 自动区分触发方式
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          name: Release ${{ steps.get_version.outputs.VERSION }}
+          body: |
             **触发方式**：${{ github.event_name == 'workflow_dispatch' && '手动触发' || '标签自动触发' }}  
             **包含文件**：仓库所有文件（排除 .git、.github 和旧打包文件）
-          files: release-${{ steps.get_version.outputs.VERSION }}.zip  # 要上传的包
-          draft: false  # 直接发布，非草稿
-          prerelease: false  # 标记为正式版本
+          files: release-${{ steps.get_version.outputs.VERSION }}.zip
+          draft: false
+          prerelease: false
