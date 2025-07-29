@@ -1,4 +1,4 @@
-name: Sync to Target Path
+name: Sync Compressed File
 on:
   push:
     tags: ['v*']  # 标签触发（如 v1.0.0）
@@ -7,62 +7,98 @@ on:
       version:
         description: '版本号（必须带 v 前缀，如 v1.0.0）'
         required: true
-        default: 'v1.0.0'
-
+        default: 'v2.0'
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     env:
-      TARGET_OWNER: "mzsy123"          # 目标仓库所有者
+      TARGET_OWNER: "mzsy123"          # 目标仓库所有者（GitHub 用户名）
       TARGET_REPO: "mzsy123.github.io" # 目标仓库名称
-      TARGET_PATH: "target/directory"  # 目标路径（如 zip、public 等）
-      TARGET_BRANCH: "main"            # 目标分支（如 main、gh-pages）
+      TARGET_PATH: "compressed"        # 目标仓库的目标路径（如 compressed、releases 等）
+      TARGET_BRANCH: "main"            # 目标仓库的分支（如 main、gh-pages）
 
     steps:
+      ####################################################################
+      # 1. 检出源仓库代码
+      ####################################################################
       - name: 检出源仓库
         uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0  # 确保获取完整的标签历史
 
+      ####################################################################
+      # 2. 提取并校验版本号
+      ####################################################################
       - name: 提取版本号
         id: ver
         run: |
-          V=${{ github.event.inputs.version || github.ref_name }}
-          [[ $V != v* ]] && echo "::error::版本号必须以 v 开头" && exit 1
-          echo "VERSION=$V" >> $GITHUB_OUTPUT
+          # 手动触发：取输入的版本号；标签触发：取标签名
+          VERSION=${{ github.event.inputs.version || github.ref_name }}
+          
+          # 强制校验版本号格式（必须以 v 开头）
+          if [[ "$VERSION" != v* ]]; then
+            echo "::error::版本号必须以 v 开头（如 v1.0.0）"
+            exit 1
+          fi
+          
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
+      ####################################################################
+      # 3. 打包源仓库内容（生成压缩包）
+      ####################################################################
       - name: 打包文件
-        run: zip -r "release-${{ steps.ver.outputs.VERSION }}.zip" . -x "*.git*" ".github/" "release-*.zip"
-        shell: bash
+        run: |
+          zip -r "release-${{ steps.ver.outputs.VERSION }}.zip" . \
+            -x "*.git*" \          # 排除 Git 相关文件
+            -x ".github/" \        # 排除 GitHub Actions 目录
+            -x "release-*.zip"     # 排除已存在的压缩包
+        shell: bash  # 强制使用 bash 执行，避免参数解析问题
 
-      - name: 检出目标仓库（PAT 认证）
+      ####################################################################
+      # 4. 检出目标仓库（使用 PAT 认证）
+      ####################################################################
+      - name: 检出目标仓库
         uses: actions/checkout@v4
         with:
-          repository: ${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}
-          ref: ${{ env.TARGET_BRANCH }}
-          token: ${{ secrets.TARGET_REPO_PAT }}
-          path: target_repo
+          repository: ${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}  # 目标仓库地址
+          ref: ${{ env.TARGET_BRANCH }}                               # 目标分支
+          token: ${{ secrets.TARGET_REPO_PAT }}                       # 安全存储的 PAT
+          path: target_repo                                           # 检出到子目录，避免冲突
 
-      - name: 禁用 Git 凭证缓存（解决隐式认证冲突）
-        run: git config --global credential.helper ""
-
-      - name: 解压到目标路径
+      ####################################################################
+      # 5. 复制压缩包到目标路径
+      ####################################################################
+      - name: 复制压缩包到目标路径
         run: |
+          # 创建目标目录（确保不存在时自动创建）
           mkdir -p target_repo/${{ env.TARGET_PATH }}
-          unzip "release-${{ steps.ver.outputs.VERSION }}.zip" -d target_repo/${{ env.TARGET_PATH }}
+          
+          # 将生成的压缩包复制到目标目录
+          cp "release-${{ steps.ver.outputs.VERSION }}.zip" \
+             target_repo/${{ env.TARGET_PATH }}
 
-      - name: 提交并推送（显式 URL + 强校验）
+      ####################################################################
+      # 6. 提交并推送到目标仓库
+      ####################################################################
+      - name: 提交并推送更改
         run: |
-          cd target_repo
-          # 强制设置远程 URL（和本地测试一致）
-          git remote set-url origin https://${{ secrets.TARGET_REPO_PAT }}@github.com/${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}.git
+          cd target_repo  # 进入检出的目标仓库目录
+          
+          # 配置 Git 身份（必填，否则无法提交）
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
+          
+          # 暂存所有变更
           git add .
+          
+          # 检查是否有实际变更（避免空提交）
           if git diff --cached --quiet; then
-            echo "✅ 无变更"
+            echo "✅ 无文件变更，跳过提交"
           else
-            git commit -m "Sync: ${{ steps.ver.outputs.VERSION }}"
+            # 提交变更
+            git commit -m "Sync compressed file: ${{ steps.ver.outputs.VERSION }}"
+            # 推送到目标仓库
             git push
-            echo "✅ 推送成功！"
+            echo "✅ 压缩包已成功同步到目标仓库！"
           fi
