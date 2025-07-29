@@ -27,18 +27,17 @@ jobs:
             echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
 
-      # 关键修复：单行命令，无续行符
-      - name: 打包仓库内容
+      - name: 打包仓库内容（单行命令，彻底防续行问题）
         run: |
           zip -r "release-${{ steps.get_version.outputs.VERSION }}.zip" . -x "*.git*" -x ".github/" -x "release-*.zip"
-        shell: bash  # 强制用 bash，避免 sh 的兼容问题
+        shell: bash
 
-      - name: 创建 Release 并上传
-        uses: softprops/action-gh-release@v1
+      - name: 创建 Release 并上传（升级到 v2，修复权限）
+        uses: softprops/action-gh-release@v2
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # 优先用内置 Token，失败再换 PAT
         with:
-          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          tag: ${{ steps.get_version.outputs.VERSION }}  # v2 语法：tag 代替 tag_name
           name: Release ${{ steps.get_version.outputs.VERSION }}
           body: |
             **触发方式**：${{ github.event_name == 'workflow_dispatch' && '手动触发' || '标签自动触发' }}  
