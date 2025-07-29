@@ -51,15 +51,14 @@ jobs:
         shell: bash  # 强制 bash 解析参数
 
       ####################################################################
-      # 4. 检出目标仓库（显式 PAT 认证，解决 403 核心问题）
+      # 4. 检出目标仓库（官方方案：用 token 参数传递 PAT，彻底解决认证问题）
       ####################################################################
-      - name: 检出目标仓库（带 PAT 认证）
+      - name: 检出目标仓库（PAT 认证）
         uses: actions/checkout@v4
         with:
           repository: ${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}  # 目标仓库地址
           ref: ${{ env.TARGET_BRANCH }}                               # 目标分支
-          # 关键：显式构造含 PAT 的远程 URL，确保认证
-          remote-url: https://${{ secrets.TARGET_REPO_PAT }}@github.com/${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}.git
+          token: ${{ secrets.TARGET_REPO_PAT }}                       # 关键：显式传递你的 PAT
           path: target_repo                                           # 检出到子目录，避免冲突
 
       ####################################################################
