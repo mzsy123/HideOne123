@@ -1,83 +1,74 @@
-name: Sync Release  # 工作流名称，可自定义
+name: Sync Release
 on:
   push:
-    tags: ['v*']  # 标签触发（如 v1.0.0）
-  workflow_dispatch:  # 手动触发入口
+    tags: ['v*']
+  workflow_dispatch:
     inputs:
       version:
-        description: '版本号（必须带 v 前缀，如 v1.0.0）'
+        description: '版本号（带 v 前缀，如 v1.0.0）'
         required: true
-        default: 'v1.0.0'
+        default: 'v2.7'
 
 jobs:
   sync-release:
     runs-on: ubuntu-latest
     steps:
-      # 1. 检出源仓库代码（必须步骤）
-      - name: 检出代码
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 确保获取完整标签历史，支持版本号提取
+          fetch-depth: 0
 
-      # 2. 提取并校验版本号（自动/手动触发兼容）
       - name: 提取版本号
         id: get_version
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            # 手动触发：强制校验版本号格式（必须带 v）
             if [[ "${{ github.event.inputs.version }}" != v* ]]; then
               echo "::error::版本号必须以 v 开头（如 v1.0.0）"
               exit 1
             fi
             echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
           else
-            # 标签触发：从标签名提取版本号（如 refs/tags/v1.0.0 → v1.0.0）
             echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
 
-      # 3. 打包仓库内容（单行命令 + bash 执行，彻底解决续行问题）
-      - name: 打包仓库
+      # 终极打包修复：绝对单行 + 调试 + bash 强制
+      - name: 打包仓库（调试版）
         run: |
-          zip -r "release-${{ steps.get_version.outputs.VERSION }}.zip" . \
-            -x "*.git*" \          # 排除 Git 版本控制文件
-            -x ".github/" \        # 排除 GitHub Actions 配置目录
-            -x "release-*.zip"     # 排除历史打包文件
-        shell: bash  # 强制用 bash 执行，避免 sh 的参数解析问题
+          echo "========== 当前目录文件列表 =========="
+          ls -la  # 调试：确认文件存在
+          echo "========== 执行 zip 命令 =========="
+          # 纯单行，无任何续行符！
+          zip -r "release-${{ steps.get_version.outputs.VERSION }}.zip" . -x "*.git*" -x ".github/" -x "release-*.zip"
+        shell: bash  # 必须强制 bash，否则 sh 会拆参数
 
-      # 4. 发布到源仓库的 Releases（当前仓库：HideOne123）
       - name: 发布到源仓库
         uses: softprops/action-gh-release@v2
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # 源仓库内置 Token（自动授权）
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ steps.get_version.outputs.VERSION }}  # 标签名（带 v）
-          name: "Release ${{ steps.get_version.outputs.VERSION }}"  # Release 标题
-          body: |  # 自动生成发布说明
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          name: "Release ${{ steps.get_version.outputs.VERSION }}"
+          body: |
             **触发方式**：${{ github.event_name == 'workflow_dispatch' && '手动触发' || '标签自动触发' }}  
-            **同步目标**：mzsy123/mzsy123.github.io（需替换为实际目标仓库）
-          files: "release-${{ steps.get_version.outputs.VERSION }}.zip"  # 要上传的资产
-          draft: false  # 直接发布，非草稿
-          prerelease: false  # 标记为正式版本
+            **同步目标**：mzsy123/mzsy123.github.io
+          files: "release-${{ steps.get_version.outputs.VERSION }}.zip"
+          draft: false
+          prerelease: false
 
-      # 5. 同步到目标仓库（核心步骤，修复变量重复声明问题）
-      - name: 同步到目标仓库
+      - name: 同步到目标仓库（修复变量冲突）
         uses: actions/github-script@v7
         env:
-          TARGET_OWNER: "mzsy123"            # 替换为目标仓库所有者（如你的 GitHub 用户名）
-          TARGET_REPO: "mzsy123.github.io"   # 替换为目标仓库名称
-          TAG: ${{ steps.get_version.outputs.VERSION }}  # 版本号（带 v）
-          ASSET_PATH: "release-${{ steps.get_version.outputs.VERSION }}.zip"  # 打包文件路径
-          TARGET_PAT: ${{ secrets.TARGET_REPO_PAT }}  # 需提前配置的 PAT（参考前置步骤）
+          TARGET_OWNER: "mzsy123"
+          TARGET_REPO: "mzsy123.github.io"
+          TAG: ${{ steps.get_version.outputs.VERSION }}
+          ASSET_PATH: "release-${{ steps.get_version.outputs.VERSION }}.zip"
+          TARGET_PAT: ${{ secrets.TARGET_REPO_PAT }}
         with:
           script: |
             const fs = require('fs').promises;
-            // GitHub Script 已内置 core 和 github 对象，无需手动 require！
-            const octokit = github.rest;  // 直接使用内置的 octokit 实例（已通过 TARGET_PAT 认证）
+            const octokit = github.rest;  // 用内置 octokit
 
-            // ① 查找或创建目标仓库的 Release
             let release;
             try {
-              // 尝试获取已有 Release（按标签）
               release = await octokit.repos.getReleaseByTag({
                 owner: process.env.TARGET_OWNER,
                 repo: process.env.TARGET_REPO,
@@ -85,37 +76,35 @@ jobs:
               });
             } catch (err) {
               if (err.status === 404) {
-                // 不存在则创建新 Release
                 release = await octokit.repos.createRelease({
                   owner: process.env.TARGET_OWNER,
                   repo: process.env.TARGET_REPO,
                   tag_name: process.env.TAG,
                   name: `Sync from HideOne123: ${process.env.TAG}`,
-                  body: "此版本自动从 HideOne123 仓库同步发布",
+                  body: "此版本自动从 HideOne123 同步发布",
                   draft: false,
                   prerelease: false
                 });
               } else {
-                core.setFailed(`创建/查找 Release 失败：${err.message}`);
+                core.setFailed(`创建 Release 失败：${err.message}`);
                 return;
               }
             }
 
-            // ② 上传资产到目标仓库的 Release
             try {
               const fileContent = await fs.readFile(process.env.ASSET_PATH);
               await octokit.repos.uploadReleaseAsset({
                 owner: process.env.TARGET_OWNER,
                 repo: process.env.TARGET_REPO,
                 release_id: release.data.id,
-                name: process.env.ASSET_PATH.split('/').pop(),  // 提取文件名（兼容路径）
+                name: process.env.ASSET_PATH.split('/').pop(),
                 data: fileContent,
                 headers: {
                   'content-type': 'application/zip',
                   'content-length': fileContent.length
                 }
               });
-              console.log("✅ 成功同步到目标仓库！");
+              console.log("✅ 同步成功！");
             } catch (err) {
               core.setFailed(`上传资产失败：${err.message}`);
             }
