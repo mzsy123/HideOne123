@@ -15,8 +15,8 @@ jobs:
     env:
       TARGET_OWNER: "mzsy123"          # 目标仓库所有者（如 GitHub 用户名）
       TARGET_REPO: "mzsy123.github.io" # 目标仓库名称
-      TARGET_PATH: "zip"  # 目标仓库的指定路径（如 docs、public 等，按需修改）
-      TARGET_BRANCH: "main"            # 目标仓库的分支（如 main、gh-pages 等）
+      TARGET_PATH: "target/directory"  # 目标路径（如 docs、public，按需修改）
+      TARGET_BRANCH: "main"            # 目标分支（如 main、gh-pages）
 
     steps:
       ####################################################################
@@ -42,7 +42,7 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
       ####################################################################
-      # 3. 打包源仓库内容（排除冗余文件）
+      # 3. 打包源仓库内容
       ####################################################################
       - name: 打包文件
         run: |
@@ -51,14 +51,15 @@ jobs:
         shell: bash  # 强制 bash 解析参数
 
       ####################################################################
-      # 4. 检出目标仓库（用 PAT 认证，避免权限问题）
+      # 4. 检出目标仓库（显式 PAT 认证，解决 403 核心问题）
       ####################################################################
-      - name: 检出目标仓库
+      - name: 检出目标仓库（带 PAT 认证）
         uses: actions/checkout@v4
         with:
           repository: ${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}  # 目标仓库地址
           ref: ${{ env.TARGET_BRANCH }}                               # 目标分支
-          token: ${{ secrets.TARGET_REPO_PAT }}                       # PAT 认证（安全存储）
+          # 关键：显式构造含 PAT 的远程 URL，确保认证
+          remote-url: https://${{ secrets.TARGET_REPO_PAT }}@github.com/${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}.git
           path: target_repo                                           # 检出到子目录，避免冲突
 
       ####################################################################
@@ -70,21 +71,24 @@ jobs:
           mkdir -p target_repo/${{ env.TARGET_PATH }}
           # 解压打包文件到目标路径
           unzip "release-${{ steps.ver.outputs.VERSION }}.zip" -d target_repo/${{ env.TARGET_PATH }}
-          # 可选：删除解压后的冗余文件（如 .gitignore 等，按需调整）
+          # 可选：删除冗余文件（如 .gitignore，按需调整）
           # rm -rf target_repo/${{ env.TARGET_PATH }}/.git*
 
       ####################################################################
-      # 6. 提交并推送到目标仓库
+      # 6. 提交并推送到目标仓库（增加变更检查）
       ####################################################################
-      - name: 提交更改
+      - name: 提交更改（检查空提交）
         run: |
           cd target_repo
-          # 配置 Git 身份（必填，否则无法提交）
+          # 配置 Git 身份（必填）
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          # 检查变更
+          # 检查是否有文件变更
           git add .
-          git diff --cached --quiet || (
+          if git diff --cached --quiet; then
+            echo "✅ 无变更，跳过提交"
+          else
             git commit -m "Sync from source: ${{ steps.ver.outputs.VERSION }}"
             git push
-          )
+            echo "✅ 提交并推送成功！"
+          fi
