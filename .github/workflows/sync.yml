@@ -15,7 +15,7 @@ jobs:
     env:
       TARGET_OWNER: "mzsy123"          # 目标仓库所有者（如 GitHub 用户名）
       TARGET_REPO: "mzsy123.github.io" # 目标仓库名称
-      TARGET_PATH: "target/directory"  # 目标路径（如 docs、public，按需修改）
+      TARGET_PATH: "zip"  # 目标路径（如 docs、public，按需修改）
       TARGET_BRANCH: "main"            # 目标分支（如 main、gh-pages）
 
     steps:
