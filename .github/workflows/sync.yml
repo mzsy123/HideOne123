@@ -7,7 +7,7 @@ on:
       version:
         description: '版本号（必须带 v 前缀，如 v1.0.0）'
         required: true
-        default: 'v2.0'
+        default: 'v1.0.0'
 
 jobs:
   sync:
@@ -15,8 +15,8 @@ jobs:
     env:
       TARGET_OWNER: "mzsy123"          # 目标仓库所有者（GitHub 用户名）
       TARGET_REPO: "mzsy123.github.io" # 目标仓库名称
-      TARGET_PATH: "compressed"        # 目标仓库的目标路径（如 compressed、releases 等）
-      TARGET_BRANCH: "main"            # 目标仓库的分支（如 main、gh-pages）
+      TARGET_PATH: "compressed"        # 目标路径（如 compressed、releases 等）
+      TARGET_BRANCH: "main"            # 目标分支（如 main、gh-pages）
 
     steps:
       ####################################################################
@@ -25,7 +25,7 @@ jobs:
       - name: 检出源仓库
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 确保获取完整的标签历史
+          fetch-depth: 0  # 确保获取完整标签历史
 
       ####################################################################
       # 2. 提取并校验版本号
@@ -33,10 +33,10 @@ jobs:
       - name: 提取版本号
         id: ver
         run: |
-          # 手动触发：取输入的版本号；标签触发：取标签名
+          # 区分手动/标签触发，提取版本号
           VERSION=${{ github.event.inputs.version || github.ref_name }}
           
-          # 强制校验版本号格式（必须以 v 开头）
+          # 强制校验格式（必须以 v 开头）
           if [[ "$VERSION" != v* ]]; then
             echo "::error::版本号必须以 v 开头（如 v1.0.0）"
             exit 1
@@ -45,18 +45,17 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
       ####################################################################
-      # 3. 打包源仓库内容（生成压缩包）
+      # 3. 打包文件（修复 -x 解析错误：所有参数写在同一行）
       ####################################################################
       - name: 打包文件
         run: |
+          # 关键：-x 参数与 zip 命令紧连，避免续行符导致的解析问题
           zip -r "release-${{ steps.ver.outputs.VERSION }}.zip" . \
-            -x "*.git*" \          # 排除 Git 相关文件
-            -x ".github/" \        # 排除 GitHub Actions 目录
-            -x "release-*.zip"     # 排除已存在的压缩包
-        shell: bash  # 强制使用 bash 执行，避免参数解析问题
+              -x "*.git*" -x ".github/" -x "release-*.zip"
+        shell: bash  # 强制用 bash 执行，确保参数解析正确
 
       ####################################################################
-      # 4. 检出目标仓库（使用 PAT 认证）
+      # 4. 检出目标仓库（PAT 认证，解决权限问题）
       ####################################################################
       - name: 检出目标仓库
         uses: actions/checkout@v4
@@ -74,7 +73,7 @@ jobs:
           # 创建目标目录（确保不存在时自动创建）
           mkdir -p target_repo/${{ env.TARGET_PATH }}
           
-          # 将生成的压缩包复制到目标目录
+          # 复制生成的压缩包到目标目录
           cp "release-${{ steps.ver.outputs.VERSION }}.zip" \
              target_repo/${{ env.TARGET_PATH }}
 
