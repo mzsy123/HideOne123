@@ -1,4 +1,4 @@
-name: Sync Release
+name: Sync to Target Path
 on:
   push:
     tags: ['v*']  # 标签触发（如 v1.0.0）
@@ -12,17 +12,27 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    env:
+      TARGET_OWNER: "mzsy123"          # 目标仓库所有者（如 GitHub 用户名）
+      TARGET_REPO: "mzsy123.github.io" # 目标仓库名称
+      TARGET_PATH: "zip"  # 目标仓库的指定路径（如 docs、public 等，按需修改）
+      TARGET_BRANCH: "main"            # 目标仓库的分支（如 main、gh-pages 等）
+
     steps:
+      ####################################################################
       # 1. 检出源仓库代码
-      - uses: actions/checkout@v4
+      ####################################################################
+      - name: 检出源仓库
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0  # 确保获取标签历史
 
-      # 2. 提取并校验版本号（兼容手动/标签触发）
+      ####################################################################
+      # 2. 提取并校验版本号
+      ####################################################################
       - name: 提取版本号
         id: ver
         run: |
-          # 手动触发：取输入值；标签触发：取标签名
           VERSION=${{ github.event.inputs.version || github.ref_name }}
           # 强制校验 v 前缀
           if [[ "$VERSION" != v* ]]; then
@@ -31,76 +41,50 @@ jobs:
           fi
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
-      # 3. 打包仓库（单行命令 + bash 确保参数正确）
-      - name: 打包内容
-        run: zip -r "release-${{ steps.ver.outputs.VERSION }}.zip" . -x "*.git*" ".github/" "release-*.zip"
-        shell: bash  # 强制用 bash 解析参数，避免续行问题
+      ####################################################################
+      # 3. 打包源仓库内容（排除冗余文件）
+      ####################################################################
+      - name: 打包文件
+        run: |
+          zip -r "release-${{ steps.ver.outputs.VERSION }}.zip" . \
+            -x "*.git*" -x ".github/" -x "release-*.zip"
+        shell: bash  # 强制 bash 解析参数
 
-      # 4. 发布到源仓库的 Releases（自动授权）
-      - name: 发布到源仓库
-        uses: softprops/action-gh-release@v2
+      ####################################################################
+      # 4. 检出目标仓库（用 PAT 认证，避免权限问题）
+      ####################################################################
+      - name: 检出目标仓库
+        uses: actions/checkout@v4
         with:
-          tag_name: ${{ steps.ver.outputs.VERSION }}
-          files: "release-${{ steps.ver.outputs.VERSION }}.zip"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # 源仓库内置 Token
+          repository: ${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}  # 目标仓库地址
+          ref: ${{ env.TARGET_BRANCH }}                               # 目标分支
+          token: ${{ secrets.TARGET_REPO_PAT }}                       # PAT 认证（安全存储）
+          path: target_repo                                           # 检出到子目录，避免冲突
 
-      # 5. 跨仓库同步到目标仓库（显式 PAT 认证）
-      - name: 同步到目标仓库
-        uses: actions/github-script@v7
-        env:
-          TARGET_OWNER: "mzsy123"            # 替换为目标仓库所有者（如 GitHub 用户名）
-          TARGET_REPO: "mzsy123.github.io"   # 替换为目标仓库名称
-          TAG: ${{ steps.ver.outputs.VERSION }}
-          ASSET_PATH: "release-${{ steps.ver.outputs.VERSION }}.zip"
-        with:
-          github-token: ${{ secrets.TARGET_REPO_PAT }}  # 需提前配置的 PAT（安全存储）
-          script: |
-            // 解构环境变量
-            const { TARGET_OWNER, TARGET_REPO, TAG, ASSET_PATH } = process.env;
-            const octokit = github.rest;  // 内置 octokit，自动使用传入的 PAT 认证
+      ####################################################################
+      # 5. 解压文件到目标路径
+      ####################################################################
+      - name: 解压并覆盖目标路径
+        run: |
+          # 创建目标目录（确保存在）
+          mkdir -p target_repo/${{ env.TARGET_PATH }}
+          # 解压打包文件到目标路径
+          unzip "release-${{ steps.ver.outputs.VERSION }}.zip" -d target_repo/${{ env.TARGET_PATH }}
+          # 可选：删除解压后的冗余文件（如 .gitignore 等，按需调整）
+          # rm -rf target_repo/${{ env.TARGET_PATH }}/.git*
 
-            // ① 尝试获取已有 Release，不存在则创建
-            let release;
-            try {
-              release = await octokit.repos.getReleaseByTag({
-                owner: TARGET_OWNER,
-                repo: TARGET_REPO,
-                tag: TAG
-              });
-            } catch (err) {
-              if (err.status === 404) {
-                // 创建新 Release
-                release = await octokit.repos.createRelease({
-                  owner: TARGET_OWNER,
-                  repo: TARGET_REPO,
-                  tag_name: TAG,
-                  name: `Sync from Source: ${TAG}`,
-                  body: "此版本自动从源仓库同步发布",
-                  draft: false,
-                  prerelease: false
-                });
-              } else {
-                core.setFailed(`Release 操作失败：${err.message}`);
-                return;
-              }
-            }
-
-            // ② 上传资产到目标仓库
-            try {
-              const fileContent = await require('fs').promises.readFile(ASSET_PATH);
-              await octokit.repos.uploadReleaseAsset({
-                owner: TARGET_OWNER,
-                repo: TARGET_REPO,
-                release_id: release.data.id,
-                name: ASSET_PATH.split('/').pop(),  // 提取文件名
-                data: fileContent,
-                headers: {
-                  'content-type': 'application/zip',
-                  'content-length': fileContent.length
-                }
-              });
-              console.log("✅ 跨仓库同步成功！");
-            } catch (err) {
-              core.setFailed(`资产上传失败：${err.message}`);
-            }
+      ####################################################################
+      # 6. 提交并推送到目标仓库
+      ####################################################################
+      - name: 提交更改
+        run: |
+          cd target_repo
+          # 配置 Git 身份（必填，否则无法提交）
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          # 检查变更
+          git add .
+          git diff --cached --quiet || (
+            git commit -m "Sync from source: ${{ steps.ver.outputs.VERSION }}"
+            git push
+          )
