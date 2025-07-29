@@ -1,4 +1,4 @@
-name: Release & Sync to GitHub Pages
+name: sync-pages
 
 on:
   push:
