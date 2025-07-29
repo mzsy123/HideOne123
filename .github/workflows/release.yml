@@ -8,7 +8,7 @@ on:
       version:
         description: '版本号（必须带 v 前缀，如 v1.0.0）'
         required: true
-        default: 'v1.0.0'
+        default: 'v2.'
 
 jobs:
   build-and-release:
@@ -48,6 +48,6 @@ jobs:
           body: |
             **触发方式**：${{ github.event_name == 'workflow_dispatch' && '手动触发' || '标签自动触发' }}  
             **版本说明**：本次发布包含仓库所有文件（排除冗余目录）
-          files: release-${{ steps.get_version.outputs.VERSION }}.zip
+          files: release-HideOne${{ steps.get_version.outputs.VERSION }}.zip
           draft: false
           prerelease: false
