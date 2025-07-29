@@ -86,7 +86,7 @@ jobs:
           
           # 配置 Git 身份（必填，否则无法提交）
           git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
+          git config user.email "2957600767@qq.com"
           
           # 暂存所有变更
           git add .
