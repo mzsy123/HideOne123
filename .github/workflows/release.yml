@@ -35,7 +35,7 @@ jobs:
 
       - name: 打包仓库内容（单行命令，防续行问题）
         run: |
-          zip -r "release_HideOne_${{ steps.get_version.outputs.VERSION }}.zip" . -x "*.git*" -x ".github/" -x "release-*.zip"
+          zip -r "HideOne_${{ steps.get_version.outputs.VERSION }}.zip" . -x "*.git*" -x ".github/" -x "release-*.zip"
         shell: bash
 
       - name: 创建 Release 并上传（v2 正确参数）
@@ -48,6 +48,6 @@ jobs:
           body: |
             **触发方式**：${{ github.event_name == 'workflow_dispatch' && '手动触发' || '标签自动触发' }}  
             **版本说明**：本次发布包含仓库所有文件(排除部分构建内容)
-          files: release_HideOne_${{ steps.get_version.outputs.VERSION }}.zip
+          files: HideOne_${{ steps.get_version.outputs.VERSION }}.zip
           draft: false
           prerelease: false
