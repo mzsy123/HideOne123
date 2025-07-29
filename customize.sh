@@ -47,7 +47,7 @@ verify_md5 "$MODPATH/mzsy/1.zip" "Mjc5MzE3YzA5NTFhYTY3Mzk0ZGVjOTAzN2M0ZDhiMzU=" 
 verify_md5 "$MODPATH/mzsy/2.zip" "OTRjNTg1ZmJhOGQ5ZTljOTVhNDljMTgwMjdhNTQzZjk=" "②"
 verify_md5 "$MODPATH/package/pa.sh" "Y2ViNDk4ZGExZTM0NThjMDJjN2Q3MGMyYzM2YTY1YmM=" "③"
 verify_md5 "$MODPATH/mzsy/4.zip" "ZTk1MDMxNGRmZTBkZGRkOGZkMTUxNjYyZTIyNDYyNzU=" "④"
-verify_md5 "$MODPATH/mzsy/5.zip" "OTkzZDBlOWQ3NTU5YjNlYjNlMDY0MTE5OTkwYjUzZDk=" "⑤"
+verify_md5 "$MODPATH/mzsy/5.zip" "OTE1OTk5NTdkOTBmZDIwZmEyNTM0ZDEyNmE1ZWU1M2Y=" "⑤"
 verify_md5 "$MODPATH/mzsy/6.zip" "Zjc5Y2UyYzdkYzAzNDM5NjQ1ZjA3ZTlhMmNkY2IwZWU=" "⑥"
 verify_md5 "$MODPATH/mzsy/8.zip" "ZWJkYjk1NTU2OTgyY2MzMWI0MDE4YjNkYTE1M2YzZTA=" "⑦"
 verify_md5 "$MODPATH/mzsy/3.zip" "NjYzMDE5ZGI4YWU2ZDYxODAwNzc2YzRiNjhmMWE2M2M=" "⑧"
@@ -57,52 +57,48 @@ echo "【总体验证通过】所有模块MD5匹配-开始执行刷入"
 echo "*********************************************"
 
 # ==============================================
-# 模块安装逻辑（按环境区分，复用安装函数）
+# 模块安装逻辑
 # ==============================================
 # 1. KernelSU环境
-# 旧版逻辑
-# if [[ "$KSU" == "true" ]]; then
-# # if [[ "$KSU_SUKISU" == "true" ]]; then   13246新特性
-    # ui_print "- KernelSU 用户空间版本: $KSU_VER_CODE"
-    # ui_print "- KernelSU 内核空间版本: $KSU_KERNEL_VER_CODE"
-    # # 检测KSU相关管理器，决定是否安装3.zip
-    # if pm list packages | grep -q "com.rifsxd.ksunext"; then
-        # ui_print "- 检测到Ksu Next"
-        # install_module "$MODPATH/mzsy/3.zip" "ksu_module_susfs_1.5.2+R19.zip" "ksud"
-    # elif pm list packages | grep -q "com.sukisu.ultra"; then
-        # if [ "$KSU_VER_CODE" -gt 13200 ]; then
-        # ui_print "- 检测到SukiSU Ultra版本高于13200，跳过susfs管理模块刷入"
-        # else
-        # ui_print "- 检测到SukiSU Ultra版本低于13200，建议更新版本以管理susfs或刷入susfs管理模块"
-        # fi
-    # fi
-
 if [[ "$KSU" == "true" ]]; then
     ui_print "- KernelSU 用户空间版本: $KSU_VER_CODE"
     ui_print "- KernelSU 内核空间版本: $KSU_KERNEL_VER_CODE"
     if [[ "$KSU_SUKISU" == "true" ]]; then
-        if [ "$KSU_VER_CODE" -gt 13200 ]; then
-            ui_print "- 检测到SukiSU Ultra版本高于13200，跳过susfs管理模块刷入"
-        else
-            ui_print "- 检测到SukiSU Ultra版本低于13200，建议更新版本以管理susfs或刷入susfs管理模块"
-        fi
+        ui_print "- 检测到SukiSU Ultra版本高于13248，跳过susfs管理模块刷入"
     else
         if pm list packages | grep -q "com.rifsxd.ksunext"; then
             ui_print "- 检测到Ksu Next"
             install_module "$MODPATH/mzsy/3.zip" "ksu_module_susfs_1.5.2+R19.zip" "ksud"
+            need_install_shamiko=0
+        elif pm list packages | grep -q "com.sukisu.ultra"; then
+            if [ "$KSU_KERNEL_VER_CODE" -ge 13200 ]; then
+                ui_print "- 检测到SukiSU Ultra内核版本高于13200，跳过susfs管理模块刷入"
+                need_install_shamiko=0
+            else
+                ui_print "- 检测到SukiSU Ultra内核版本低于13200，建议更新版本以管理susfs或刷入susfs管理模块"
+                ui_print "- 如未显示入口则代表您的内核未集成配置susfs模块"
+                need_install_shamiko=0
+            fi
         else
-            ui_print "- 你不会还在用官方版ksu吧?"
+            ui_print "- 不会吧不会吧你不会还在用官方版ksu吧?"
+            ui_print "- 除SukiSU和Next版外均未集成susfs已为您选择下位替代"
+            need_install_shamiko=1  # 需要安装1.zip，标记为后续执行
         fi
     fi
     sleep 2
-    # 通用模块安装（复用函数，统一传入安装命令"ksud"）
+
+    # 通用模块安装
     install_module "$MODPATH/mzsy/2.zip" "Tricky-Store-v1.3.0-180-8acfa57-release.zip" "ksud"
     sleep 1
     install_module "$MODPATH/mzsy/9.zip" "TrickyAddonModule-v4.0.zip" "ksud"
     sleep 1
     install_module "$MODPATH/mzsy/4.zip" "Zygisk-Next-1.2.9.1-534-b8e7e21-release.zip" "ksud"
     sleep 1
-    install_module "$MODPATH/mzsy/5.zip" "PlayIntegrityFix_v19.2-TEST.zip" "ksud"
+    if [ "$need_install_shamiko" -eq 1 ]; then
+        install_module "$MODPATH/mzsy/1.zip" "Shamiko-v1.2.5-414-release.zip" "ksud"
+        sleep 1
+    fi
+    install_module "$MODPATH/mzsy/5.zip" "PlayIntegrityFixInjectv4.2-inject-s.zip" "ksud"
     sleep 1
     install_module "$MODPATH/mzsy/6.zip" "LSPosed-v1.9.2-it-7379-release.zip" "ksud"
     sleep 1
@@ -124,7 +120,7 @@ elif [[ "$APATCH" == "true" ]]; then
     sleep 1
     install_module "$MODPATH/mzsy/4.zip" "Zygisk-Next-1.2.9.1-534-b8e7e21-release.zip" "apd"
     sleep 1
-    install_module "$MODPATH/mzsy/5.zip" "PlayIntegrityFix_v19.2-TEST.zip" "apd"
+    install_module "$MODPATH/mzsy/5.zip" "PlayIntegrityFixInjectv4.2-inject-s.zip" "apd"
     sleep 1
     install_module "$MODPATH/mzsy/6.zip" "LSPosed-v1.9.2-it-7379-release.zip" "apd"
     sleep 1
@@ -140,64 +136,101 @@ elif [[ "$APATCH" == "true" ]]; then
 # 3. Magisk环境（默认环境）
 else
     ui_print "- Magisk 版本: $MAGISK_VER_CODE"
-    
-    # 安装Shamiko模块（调用修复后的安装函数）
-    install_module "$MODPATH/mzsy/1.zip" "Shamiko-v1.2.5-414-release.zip" "magisk --install-module"
-    echo "- 正在为shamiko添加切换按钮"# v2.4尝试添加
-    echo "*********************************************"
-    unzip -jo "$ZIPFILE" 'mzsy/shamiko.sh' -d /data/local/tmp &>/dev/null
-    mv -f "/data/local/tmp/shamiko.sh" "/data/adb/modules/zygisk_shamiko/action.sh"
-    rm -f /data/local/tmp/shamiko.sh
-    sleep 1
-    
-    # 通用模块安装（复用函数，传入正确的Magisk安装命令）
-    install_module "$MODPATH/mzsy/2.zip" "Tricky-Store-v1.3.0-180-8acfa57-release.zip" "magisk --install-module"
-    sleep 1
-    install_module "$MODPATH/mzsy/9.zip" "TrickyAddonModule-v4.0.zip" "magisk --install-module"
-    sleep 1
-    install_module "$MODPATH/mzsy/4.zip" "Zygisk-Next-1.2.9.1-534-b8e7e21-release.zip" "magisk --install-module"
-    sleep 1
-    install_module "$MODPATH/mzsy/5.zip" "PlayIntegrityFix_v19.2-TEST.zip" "magisk --install-module"
-    sleep 1
-    install_module "$MODPATH/mzsy/6.zip" "LSPosed-v1.9.2-it-7379-release.zip" "magisk --install-module"
-    sleep 1
-    
-    # 设置Shamiko白名单模式
-    sleep 1
-    echo "- 尝试设置shamiko模块白名单模式"
-    echo "*********************************************"
-    touch /data/adb/shamiko/whitelist
+    if [ "$MAGISK_VER_CODE" -ge 27005 ]; then
+
+        # 安装Shamiko模块（调用修复后的安装函数）
+        install_module "$MODPATH/mzsy/1.zip" "Shamiko-v1.2.5-414-release.zip" "magisk --install-module"
+        echo "- 正在为shamiko添加切换按钮"# v2.5尝试修复覆盖问题
+        echo "*********************************************"
+        unzip -jo "$ZIPFILE" 'mzsy/shamiko.sh' -d /data/local/tmp &>/dev/null
+        mv -f "/data/local/tmp/shamiko.sh" "/data/adb/modules_update/zygisk_shamiko/action.sh"
+        rm -f /data/local/tmp/shamiko.sh
+        sleep 1
+
+        # 通用模块安装（复用函数，传入正确的Magisk安装命令）
+        install_module "$MODPATH/mzsy/2.zip" "Tricky-Store-v1.3.0-180-8acfa57-release.zip" "magisk --install-module"
+        sleep 1
+        install_module "$MODPATH/mzsy/9.zip" "TrickyAddonModule-v4.0.zip" "magisk --install-module"
+        sleep 1
+        install_module "$MODPATH/mzsy/4.zip" "Zygisk-Next-1.2.9.1-534-b8e7e21-release.zip" "magisk --install-module"
+        sleep 1
+        install_module "$MODPATH/mzsy/5.zip" "PlayIntegrityFixInjectv4.2-inject-s.zip" "magisk --install-module"
+        sleep 1
+        install_module "$MODPATH/mzsy/6.zip" "LSPosed-v1.9.2-it-7379-release.zip" "magisk --install-module"
+        sleep 1
+
+        # 设置Shamiko白名单模式
+        sleep 1
+        echo "- 尝试设置shamiko模块白名单模式"
+        echo "*********************************************"
+        touch /data/adb/shamiko/whitelist
+    else
+        echo "- magisk版本低于27005不符合shamiko_1.2.5版本最低版本需求，请更新后再次刷入本模块"
+        exit 1
+    fi
 fi
 
 # ==============================================
-# 后续操作（文件移动、APK安装等）（其余逻辑保持不变）
+# 后续操作（文件移动、APK安装等）
 # ==============================================
-# 移动keybox.xml到指定目录（更新时间7.23）
+# 移动keybox.xml到指定目录（更新时间7.25）
 echo "- 移动模块内置最新keybox.xml"
 echo "*********************************************"
 mv -f "$MODPATH/mzsy/keybox.xml" "/data/adb/tricky_store/"
+sleep 1
 
-# 安装"隐藏应用列表"HMA
-echo "- 安装模块内置'隐藏应用列表'app"
+# # 安装"隐藏应用列表"HMA   旧版逻辑
+# echo "- 安装模块内置'隐藏应用列表'app"
+# echo "*********************************************"
+# # 解压APK到临时目录（不保留原目录结构）
+# unzip -jo "$ZIPFILE" 'mzsy/hma.apk' -d /data/local/tmp &>/dev/null
+# # 覆盖安装APK
+# pm install -r /data/local/tmp/hma.apk &>/dev/null
+# # 检测HMA安装结果
+# if pm list packages | grep -q "com.tsng.hidemyapplist"; then
+    # echo "- HMA安装完成"
+# else
+    # echo "- HMA安装失败"
+# fi
+# # 清理临时文件
+# rm -f /data/local/tmp/hma.apk
+
+# 安装"隐藏应用列表"HMA   2.5新版逻辑  检测是否未安装或是低于最新3.6版本满足条件则安装/更新
+echo "- 正在检测HMA状态"
 echo "*********************************************"
-# 解压APK到临时目录（不保留原目录结构）
-unzip -jo "$ZIPFILE" 'mzsy/hma.apk' -d /data/local/tmp &>/dev/null
-# 覆盖安装APK
-pm install -r /data/local/tmp/hma.apk &>/dev/null
-# 检测HMA安装结果
-if pm list packages | grep -q "com.tsng.hidemyapplist"; then
-    echo "- HMA安装完成"
-else
-    echo "- HMA安装失败"
-fi
-# 清理临时文件
-rm -f /data/local/tmp/hma.apk
 
-# 移动config.json到Download  v2.4尝试修复
+PKG="com.tsng.hidemyapplist"
+TARGET_V=455
+NEED_INSTALL=0
+
+# 检测是否安装及版本
+if pm list packages | grep -q "$PKG"; then
+    # 已安装，提取版本号（容错：获取失败默认需要安装）
+    V=$(pm dump "$PKG" 2>/dev/null | grep "versionCode=" | awk -F'=' '{print $2}' | tr -d ' ')
+    if [ -z "$V" ] || ! [[ "$V" =~ ^[0-9]+$ ]] || [ "$V" -lt "$TARGET_V" ]; then
+        echo "- 当前版本低于$TARGET_V或版本检测失败，准备升级"
+        NEED_INSTALL=1
+    else
+        echo "- 当前版本≥$TARGET_V，无需操作"
+    fi
+else
+    echo "- 未安装HMA，准备安装"
+    NEED_INSTALL=1
+fi
+
+# 执行安装
+if [ "$NEED_INSTALL" -eq 1 ]; then
+    unzip -jo "$ZIPFILE" 'mzsy/hma.apk' -d /data/local/tmp &>/dev/null
+    pm install -r /data/local/tmp/hma.apk &>/dev/null
+    echo "- $(if pm list packages | grep -q "$PKG"; then echo "安装/更新完成"; else echo "安装/更新失败  可能已安装签名冲突的软件"; fi)"
+    rm -f /data/local/tmp/hma.apk
+fi
+
+# 移动config.json到Download  v2.5再次尝试修复
 echo "- 移动模块内置config.json"
 echo "*********************************************"
 unzip -jo "$ZIPFILE" 'mzsy/config.json' -d /data/local/tmp &>/dev/null
-mv -f "/data/local/tmp/config.json" "/sdcard/Download"
+cp "/data/local/tmp/config.json" "/sdcard/Download/config.json"
 rm -f /data/local/tmp/config.json
 
 # ==============================================

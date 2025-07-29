@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sh Script executor in Webui</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Misans', sans-serif;
+        }
+        
+        body {
+            background: #f5f5f5;
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .main-title {
+            text-align: center;
+            padding: 20px 0;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #333;
+            background: #f8f8f8;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .min-title {
+            text-align: center;
+            padding: 0px 0;
+            font-size: 0.7rem;
+            font-weight: 10;
+            color: #333;
+            background: #f8f8f8;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 400px;
+            background: #fff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .button-container {
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 12px;
+            background: #f8f8f8;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 14px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 600;
+        }
+        .btn-sh {
+            color: white;
+            background: linear-gradient(90deg,
+                #ff0000,    /* 红 */
+                #ffa500,    /* 橙 */
+                #ffff00,    /* 黄 */
+                #008000,    /* 绿 */
+                #0000ff,    /* 蓝 */
+                #4b0082,    /* 靛 */
+                #ee82ee,     /* 紫 */
+                #ff69b4,    /* 粉红 */
+                #ff0066     /* 深红 */);
+            background-size: 200% 100%;
+            animation: bgRuns 3s infinite linear;
+        }
+        
+        @keyframes bgRuns {
+            0% { background-position: 0 0; }
+            100% { background-position: -200% 0; }
+        }
+        
+        .btn:hover { opacity: 0.9; transform: translateY(-2px); }
+        .btn:active { transform: translateY(1px); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; background: #d0d0d0; }
+        
+        .output-container { padding: 20px; }
+        .output-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .output-label { font-size: 0.9rem; color: #666; font-weight: 500; }
+        .clear-btn {
+            padding: 6px 12px;
+            font-size: 0.9rem;
+            border: none;
+            border-radius: 6px;
+            background: #6b7280;
+            color: white;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        .clear-btn:hover { background: #4b5563; }
+        
+        .output {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            min-height: 300px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.95rem;
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+        .output-line { margin-bottom: 10px; }
+        .output::-webkit-scrollbar { width: 8px; }
+        .output::-webkit-scrollbar-track { background: #f0f0f0; }
+        .output::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="main-title">Sh Script executor in Webui</h1>
+        <p class="min-title" id="poem-container"></p> <!-- 预留诗句显示位置 -->
+        <div class="button-container" id="scriptButtonsContainer"></div>
+        
+        <div class="output-container">
+            <div class="output-toolbar">
+                <span class="output-label">Output🚀</span>
+                <button id="clearOutput" class="clear-btn">Clean🗑️</button>
+            </div>
+            <div id="output" class="output"></div>
+        </div>
+    </div>
+
+    <script>
+        // 脚本配置中心
+        const SCRIPT_CONFIGS = [
+            { id: 'script1', path: '/data/adb/modules/HideOne/action.sh', name: '执行Action' },
+            { id: 'script2', path: '/data/adb/modules/HideOne/ql.sh', name: '清理模块残留' },
+            { id: 'script3', path: '/data/adb/modules/HideOne/package/pa.sh', name: '一键更新包名' },
+            { id: 'script4', path: '/data/adb/modules/HideOne/gb.sh', name: '临时关闭Corn服务Test' },
+            { id: 'script5', path: '/data/adb/modules/HideOne/usb.sh', name: '解决Lq刷机痕迹' },
+            { id: 'script6', path: '/data/adb/modules/HideOne/coolapk.sh', name: '打开本人Coolapk主页' },
+            { id: 'script7', path: '/data/adb/modules/HideOne/net_keybox.sh', name: 'Fetch keybox_Test' },
+            { id: 'scripttest', path: '/data/adb/modules/HideOne/test.sh', name: 'Test测试' }
+        ];
+
+        // DOM元素管理（核心容器缓存）
+        const containers = {
+            buttonContainer: document.getElementById('scriptButtonsContainer'),
+            output: document.getElementById('output'),
+            clearBtn: document.getElementById('clearOutput')
+        };
+
+        let shellRunning = false;
+
+        // 工具函数：日志输出（统一格式）
+        function log(text) {
+            const line = document.createElement('div');
+            line.className = 'output-line';
+            line.textContent = `> ${text}`;
+            containers.output.appendChild(line);
+            containers.output.scrollTop = containers.output.scrollHeight; // 自动滚动到底部
+        }
+
+        // 工具函数：控制所有交互元素状态
+        function setAllControlsDisabled(disabled) {
+            // 禁用/启用所有脚本按钮
+            document.querySelectorAll('.btn-sh').forEach(btn => {
+                btn.disabled = disabled;
+            });
+            // 禁用/启用清理按钮
+            containers.clearBtn.disabled = disabled;
+        }
+
+        // 脚本执行核心逻辑（与具体脚本解耦）
+        function executeScript(scriptConfig) {
+            if (shellRunning) {
+                log('请等待当前脚本执行完成');
+                return;
+            }
+
+            // 更新状态
+            shellRunning = true;
+            setAllControlsDisabled(true);
+            log(`开始执行: ${scriptConfig.name}`);
+
+            // 生成唯一回调ID（避免冲突）
+            const callbackId = `script_exec_cb_${Date.now()}`;
+
+            // 执行回调处理（统一结果解析）
+            window[callbackId] = (errno, stdout, stderr) => {
+                // 清理临时回调函数
+                delete window[callbackId];
+
+                // 处理标准输出
+                if (stdout) {
+                    stdout.split('\n').forEach(line => {
+                        if (line.trim()) log(line);
+                    });
+                }
+
+                // 处理错误输出
+                if (stderr) {
+                    stderr.split('\n').forEach(line => {
+                        if (line.trim()) log(`[错误] ${line}`);
+                    });
+                }
+
+                // 输出执行结果
+                log(errno !== 0 
+                    ? `执行失败（errno：${errno}）` 
+                    : '执行完成'
+                );
+
+                // 恢复状态
+                shellRunning = false;
+                setAllControlsDisabled(false);
+            };
+
+            // 执行命令（异常处理增强）
+            try {
+                const command = `/system/bin/sh ${scriptConfig.path}`;
+                log(`执行命令: ${command}`);
+                // 调用内核执行接口
+                ksu.exec(command, "{}", callbackId);
+            } catch (error) {
+                log(`执行异常: ${error.message || '未知错误'}`);
+                // 异常时清理状态
+                delete window[callbackId];
+                shellRunning = false;
+                setAllControlsDisabled(false);
+            }
+        }
+
+        // 动态生成脚本按钮（核心扩展点）
+        function renderScriptButtons() {
+            // 清空容器（避免重复渲染）
+            containers.buttonContainer.innerHTML = '';
+
+            // 根据配置生成按钮
+            SCRIPT_CONFIGS.forEach(script => {
+                const button = document.createElement('button');
+                // 设置按钮属性
+                button.id = script.id;
+                button.className = 'btn btn-sh';
+                button.textContent = script.name;
+                // 绑定点击事件（关联脚本配置）
+                button.addEventListener('click', () => executeScript(script));
+                // 添加到容器
+                containers.buttonContainer.appendChild(button);
+            });
+        }
+
+        // 初始化入口（统一启动流程）
+        function init() {
+            // 生成脚本按钮
+            renderScriptButtons();
+
+            // 绑定清理按钮事件
+            containers.clearBtn.addEventListener('click', () => {
+                containers.output.innerHTML = '';
+                log('输出已清理');
+            });
+
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', init);
+        
+        fetch('https://v1.jinrishici.com/all.txt')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('请求失败');
+                }
+                return response.text(); // 解析文本内容
+            })
+            .then(text => {
+                // 将获取到的内容显示到页面
+                document.getElementById('poem-container').textContent = text;
+            })
+            .catch(error => {
+                // 失败时显示默认内容
+                document.getElementById('poem-container').textContent = '鱼书欲寄何由达，水远山长处处同。';
+                console.error('获取诗句失败：', error);
+            });
+    </script>
+</body>
+</html>
