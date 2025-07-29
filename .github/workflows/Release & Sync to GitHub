@@ -1,4 +1,4 @@
-name: Build, Release & Sync to GitHub Pages
+name: Release & Sync to GitHub Pages
 
 on:
   push:
