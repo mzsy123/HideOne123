@@ -2,52 +2,46 @@ name: Build and Release
 
 on:
   push:
-    tags:
-      - 'v*'  # 推送 v1.0.0 这样的标签时触发
+    tags: ['v*']
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
     steps:
-      # 1. 检出仓库代码（必须，获取文件）
-      - name: 检出代码
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 确保能获取标签信息
+          fetch-depth: 0
 
-      # 2. 从标签提取版本号（如 v1.0.0 → 1.0.0）
       - name: 提取版本号
         id: get_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      # 3. 直接打包仓库内容（排除 Git 和工作流目录，避免冗余）
-      - name: 打包仓库（自动包含所有文件，排除指定项）
+      - name: 打包仓库（单行命令，避免续行问题）
         run: |
           zip -r "release-${{ steps.get_version.outputs.VERSION }}.zip" . \
-            -x "*.git*" \        # 排除 Git 版本控制文件
-            -x ".github/" \      # 排除 GitHub Actions 配置目录
-            -x "release-*.zip"   # 排除之前生成的打包文件（防止循环）
+            -x "*.git*" \
+            -x ".github/" \
+            -x "release-*.zip"
+        # 关键：在 YAML 的 `run` 中，用 `|` 或 `\` 续行时，确保 Runner 使用 bash 而非 sh！
+        shell: bash  # 强制使用 bash 执行，避免 sh 的兼容性问题
 
-      # 4. 创建 GitHub Release 页面
       - name: 创建 Release
-        id: create_release
         uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # 自动授权，无需手动配置
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref }}          # 标签名（如 v1.0.0）
-          release_name: Release ${{ steps.get_version.outputs.VERSION }}  # 发布标题
-          body: "自动打包发布，包含仓库所有文件（排除 .git 和 .github 目录）"  # 发布说明
-          draft: false                         # 直接发布，不存草稿
-          prerelease: false                    # 标记为正式版本
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ steps.get_version.outputs.VERSION }}
+          body: "自动打包，包含仓库所有文件（排除 .git、.github 和旧打包文件）"
+          draft: false
+          prerelease: false
 
-      # 5. 上传打包好的 ZIP 文件到 Release
       - name: 上传资产
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}  # 自动获取上传地址
-          asset_path: ./release-${{ steps.get_version.outputs.VERSION }}.zip  # 打包文件路径
-          asset_name: release-${{ steps.get_version.outputs.VERSION }}.zip     # 显示的文件名
-          asset_content_type: application/zip  # 文件类型（固定为 zip）
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./release-${{ steps.get_version.outputs.VERSION }}.zip
+          asset_name: release-${{ steps.get_version.outputs.VERSION }}.zip
+          asset_content_type: application/zip
