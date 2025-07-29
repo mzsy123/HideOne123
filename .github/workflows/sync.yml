@@ -96,7 +96,7 @@ jobs:
             echo "✅ 无文件变更，跳过提交"
           else
             # 提交变更
-            git commit -m "Sync compressed file: ${{ steps.ver.outputs.VERSION }}"
+            git commit -m "上游同步: ${{ steps.ver.outputs.VERSION }}"
             # 推送到目标仓库
             git push
             echo "✅ 压缩包已成功同步到目标仓库！"
