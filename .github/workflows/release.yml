@@ -1,64 +1,53 @@
-name: Build and release
+name: Build and Release
 
 on:
   push:
     tags:
-      - 'v*'  # 仅推送以v开头的标签（如v1.0.0）时触发
+      - 'v*'  # 推送 v1.0.0 这样的标签时触发
 
 jobs:
   build-and-release:
-    runs-on: ubuntu-latest  # 使用最新版Ubuntu环境
+    runs-on: ubuntu-latest
     steps:
-      - name: 检出完整代码
+      # 1. 检出仓库代码（必须，获取文件）
+      - name: 检出代码
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 必须设置为0才能获取完整标签历史
+          fetch-depth: 0  # 确保能获取标签信息
 
+      # 2. 从标签提取版本号（如 v1.0.0 → 1.0.0）
       - name: 提取版本号
         id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-        # 从标签引用（如refs/tags/v1.0.0）中提取版本号1.0.0
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: 创建临时打包目录
-        run: mkdir -p release-dist
-
-      - name: 同步仓库内容（排除特定目录）
+      # 3. 直接打包仓库内容（排除 Git 和工作流目录，避免冗余）
+      - name: 打包仓库（自动包含所有文件，排除指定项）
         run: |
-          rsync -av \
-            --exclude='.git' \
-            --exclude='.github' \
-            --exclude='release-dist' \
-            --exclude='*.md' \  # 可根据需求添加更多排除项
-            . release-dist/
-        # 使用rsync同步文件，保留权限和时间戳
+          zip -r "release-${{ steps.get_version.outputs.VERSION }}.zip" . \
+            -x "*.git*" \        # 排除 Git 版本控制文件
+            -x ".github/" \      # 排除 GitHub Actions 配置目录
+            -x "release-*.zip"   # 排除之前生成的打包文件（防止循环）
 
-      - name: 压缩为ZIP文件
-        run: zip -r "release-${{ steps.get_version.outputs.VERSION }}.zip" release-dist/
-        # 生成带版本号的压缩包
-
-      - name: 创建GitHub Release
+      # 4. 创建 GitHub Release 页面
+      - name: 创建 Release
         id: create_release
         uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # 自动授权，无需手动配置
         with:
-          tag_name: ${{ github.ref }}  # 自动使用触发的标签名
-          release_name: Release ${{ steps.get_version.outputs.VERSION }}
-          body: |  # 可选的发布说明
-            自动生成的版本发布
-            - 包含仓库所有非排除文件
-          draft: false  # 直接发布，不保存为草稿
-          prerelease: false  # 标记为正式版本
+          tag_name: ${{ github.ref }}          # 标签名（如 v1.0.0）
+          release_name: Release ${{ steps.get_version.outputs.VERSION }}  # 发布标题
+          body: "自动打包发布，包含仓库所有文件（排除 .git 和 .github 目录）"  # 发布说明
+          draft: false                         # 直接发布，不存草稿
+          prerelease: false                    # 标记为正式版本
 
-      - name: 上传压缩包
+      # 5. 上传打包好的 ZIP 文件到 Release
+      - name: 上传资产
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}  # 由create-release步骤提供
-          asset_path: ./release-${{ steps.get_version.outputs.VERSION }}.zip
-          asset_name: release-${{ steps.get_version.outputs.VERSION }}.zip
-          asset_content_type: application/zip  # MIME类型需与文件类型匹配
-
-      - name: 清理临时文件
-        run: rm -rf release-dist
+          upload_url: ${{ steps.create_release.outputs.upload_url }}  # 自动获取上传地址
+          asset_path: ./release-${{ steps.get_version.outputs.VERSION }}.zip  # 打包文件路径
+          asset_name: release-${{ steps.get_version.outputs.VERSION }}.zip     # 显示的文件名
+          asset_content_type: application/zip  # 文件类型（固定为 zip）
