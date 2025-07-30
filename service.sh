@@ -8,12 +8,12 @@ done
 export PATH="/system/bin:/system/xbin:/vendor/bin:$(magisk --path)/.magisk/busybox:$PATH"
 crond -c $MODDIR/cron
 
-# if [ -f "/data/adb/modules/HideOne/disable" ]; then
-    # sed -i 's/^description=.*/description=状态:模块停止运行❌本模块可全自动添加TS模块包名列表，支持添加白名单及额外包名默认添加3方应用包名/' module.prop
-# else
-    # sed -i 's/^description=.*/description=状态:模块运行中✅本模块可全自动添加TS模块包名列表，支持添加白名单及额外包名默认添加3方应用包名/' module.prop
-# fi
-sed -i 's/^description=.*/description=状态:模块运行中✅本模块可全自动添加TS模块包名列表，支持添加白名单及额外包名默认添加3方应用包名/' module.prop
+if [ -f "/data/adb/modules/HideOne/disable" ]; then
+    sed -i 's/^description=.*/description=状态:模块停止运行❌本模块可全自动添加TS模块包名列表，支持添加白名单及额外包名默认添加3方应用包名/' module.prop
+else
+    sed -i 's/^description=.*/description=状态:模块运行中✅本模块可全自动添加TS模块包名列表，支持添加白名单及额外包名默认添加3方应用包名/' module.prop
+fi
+# sed -i 's/^description=.*/description=状态:模块运行中✅本模块可全自动添加TS模块包名列表，支持添加白名单及额外包名默认添加3方应用包名/' module.prop
 
 # chmod 777 $MODDIR/package/pa.sh
 # chmod 777 /data/adb/modules/HideOne/package/pa.sh
@@ -23,4 +23,7 @@ sh $MODDIR/package/pa.sh
 if [ -e "$MODDIR/mzsy" ]; then
   rm -rf $MODDIR/mzsy
 fi
+# 延迟5分钟尝试自动删除破坏su路径隐藏功能的异常文件夹
+sleep 300
+rm -rf /data/media/0/Android/data/..5.u.S
 )
