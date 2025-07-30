@@ -234,47 +234,84 @@ cp "/data/local/tmp/config.json" "/sdcard/Download/config.json"
 rm -f /data/local/tmp/config.json
 
 # ==============================================
-# 音量键选择：刷入"游戏线程优化"模块（7.zip）
+# 音量键选择：刷入"游戏线程优化"模块（8.zip）2.7尝试解决部分机型无法自动跳过的问题
 # ==============================================
 echo "- 是否刷入'游戏线程优化'模块?"
 echo "- 按音量键+刷入"
 echo "- 按音量键-跳过"
-# 5秒超时检测逻辑
-TIMEOUT=5  # 超时时间（秒）
-KEY_TIMEOUT=false  # 超时标志
 echo "- 5秒后超时将自动跳过..."
-start=$(date +%s)  # 记录开始时间
-# 循环检测按键或超时
-while [ $(( $(date +%s) - start )) -lt $TIMEOUT ]; do
-    # 获取音量键输入（兼容不同设备的输入检测）
-    key=$(dumpsys input 2>/dev/null | awk '/KEY_VOLUME/{print $2;exit}')
-    [ -z "$key" ] && key=$(getevent -qlc 1 2>/dev/null | awk '{print $3}' | grep 'KEY_' | head -n1)
-    
-    # 检测到音量+，刷入模块
-    if [ "$key" = "KEY_VOLUMEUP" ]; then
-        # 根据环境选择安装命令
-        if [[ "$KSU" == "true" ]]; then
-            ksud module install "$MODPATH/mzsy/8.zip"
-        elif [[ "$APATCH" == "true" ]]; then
-            apd module install "$MODPATH/mzsy/8.zip"
-        else
-            magisk --install-module "$MODPATH/mzsy/8.zip"  # 直接使用正确的Magisk命令
-        fi
-        echo "- 已刷入'游戏线程优化'模块"
+echo "*********************************************"
+
+install_game_opt() {
+    if [[ "$KSU" == "true" ]]; then
+        ksud module install "$MODPATH/mzsy/8.zip"
+    elif [[ "$APATCH" == "true" ]]; then
+        apd module install "$MODPATH/mzsy/8.zip"
+    else
+        magisk --install-module "$MODPATH/mzsy/8.zip"
+    fi
+    echo "- 已刷入'游戏线程优化'模块"
+}
+
+KEY_TMP_LOG="/data/local/tmp/key_check.log"
+rm -f "$KEY_TMP_LOG"
+
+detect_key_event() {
+    getevent -ql 2>/dev/null | while read -r line; do
+        case "$line" in
+            *KEY_VOLUMEUP*DOWN*)
+                echo "UP" > "$KEY_TMP_LOG"
+                break
+                ;;
+            *KEY_VOLUMEDOWN*DOWN*)
+                echo "DOWN" > "$KEY_TMP_LOG"
+                break
+                ;;
+        esac
+    done
+}
+
+# 启动监听放后台
+detect_key_event &
+PID=$!
+
+# 等待 5 秒
+for i in $(seq 1 50); do
+    if [ -f "$KEY_TMP_LOG" ]; then
         break
     fi
-    sleep 0.2  # 短暂延迟，减少资源占用
+    sleep 0.1
 done
-# 超时未操作，自动跳过
-if [ $(( $(date +%s) - start )) -ge $TIMEOUT ]; then
+
+# 若超时仍未检测，杀掉监听进程
+if [ ! -f "$KEY_TMP_LOG" ]; then
+    kill "$PID" 2>/dev/null
     echo "⏳ 已超时，自动跳过刷入"
+else
+    KEY_RESULT=$(cat "$KEY_TMP_LOG")
+    case "$KEY_RESULT" in
+        UP)
+            install_game_opt
+            ;;
+        DOWN)
+            echo "- 主人选择跳过刷入"
+            ;;
+        *)
+            echo "⚠️ 未知按键，已跳过"
+            ;;
+    esac
 fi
+
+rm -f "$KEY_TMP_LOG"
 
 # ==============================================
 # 完成提示
 # ==============================================
+# 创建tmp缓存文件夹  减少错误发生概率
+mkdir -p "/data/adb/modules_update/HideOne/tmp"
 echo ""
 echo "- 刷入完成😋"
 echo "- 隐藏应用列表config.json导入后请自行清除残留"
 echo "- PIF模块需手动执行(需要魔法)"
+echo "- keybox如果无法过密钥可以尝试执行远程获取(需要魔法)"
 echo "- Made by MZSY233~"
