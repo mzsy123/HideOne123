@@ -11,6 +11,7 @@ on:
         options:
           - Build and Release
           - Sync Compressed File
+          - Clean Workflows
       count:
         description: '最多清理的运行次数'
         required: false
@@ -134,5 +135,4 @@ jobs:
               fi
               echo "删除本工作流运行记录 ID: $ID"
               gh api -X DELETE "repos/$REPO/actions/runs/$ID" || echo "删除失败"
-            done
-          fi
+  
