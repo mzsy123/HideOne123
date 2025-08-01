@@ -8,7 +8,7 @@ on:
       version:
         description: '版本号（必须带 v 前缀，如 v1.0.0）'
         required: true
-        default: 'v2.'
+        default: 'v2.7'
 
 jobs:
   build-and-release:
@@ -38,16 +38,24 @@ jobs:
           zip -r "HideOne_${{ steps.get_version.outputs.VERSION }}.zip" . -x "*.git*" -x ".github/" -x "release-*.zip"
         shell: bash
 
+      - name: 上传到 Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: HideOne_.get_version.outputs.VERSION }}  # Artifact 名称，包含版本号便于区分
+          path: HideOne_${{ steps.get_version.outputs.VERSION }}.zip  # 要上传的文件路径
+
       - name: 创建 Release 并上传（v2 正确参数）
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.get_version.outputs.VERSION }}  # v2 必须用 tag_name
-          name: Release HideOne_${{ steps.get_version.outputs.VERSION }}
+          name: Release ideOne_${{ steps.get_version.outputs.VERSION }}
           body: |
             **触发方式**：${{ github.event_name == 'workflow_dispatch' && '手动触发' || '标签自动触发' }}  
-            **版本说明**：本次发布包含仓库所有文件(排除部分构建内容)
+            **版本说明**：本次发布包含仓库所有文件
+
+            (排除部分构建内容)
           files: HideOne_${{ steps.get_version.outputs.VERSION }}.zip
           draft: false
           prerelease: false
