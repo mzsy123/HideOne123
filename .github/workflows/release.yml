@@ -35,7 +35,7 @@ jobs:
 
       - name: 打包仓库内容（单行命令，防续行问题）
         run: |
-          zip -r "HideOne_${{ steps.get_version.outputs.VERSION }}.zip" . -x "*.git*" -x ".github/" -x "release-*.zip"
+          zip -r "HideOne_${{ steps.get_version.outputs.VERSION }}.zip" . -x "*.git*" -x ".github/" -x "release-*.zip" -x "LICENSE"
         shell: bash
 
       - name: 上传到 Artifacts
